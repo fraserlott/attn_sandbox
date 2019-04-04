@@ -9,9 +9,9 @@ To run:
 bokeh serve eupheme_sandbox.py
 
 Variables you will need to localise in that file:
-linuxpath (set to a web-readable directory with write permissions on your file system)
-webpath (the http path corresponding to the directory above)
-modelroot (location of the NetCDFs, '/project/detn/' on the CDN or '/s3/informatics-eupheme/' on AWS
+linuxpath (set to a web-readable directory with write permissions on your file system);
+webpath (the http path corresponding to the directory above);
+modelroot (location of the NetCDFs, '/project/detn/' on the CDN or '/s3/informatics-eupheme/' on AWS.
 
-This is currently the version for running locally.
+This is currently the version for running locally. 
 The Kubernetes call from the Jupyter notebook version will need to be added to this for full AWS functionality.
