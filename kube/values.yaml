@@ -1,0 +1,6 @@
+manager:
+  name: attn-sandbox-server
+  domain: https://eu-west-1.console.aws.amazon.com/attn-sandbox
+  port: 8888
+  revision: "HEAD"
+

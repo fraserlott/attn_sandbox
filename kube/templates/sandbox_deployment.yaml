@@ -1,0 +1,57 @@
+# Deployment
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: {{ .Values.manager.name }}
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.manager.name }}
+        deployedAt : "{{ .Release.Time.Seconds }}"
+    spec:
+      containers:
+        - image: informaticslab/singleuser-notebook:0.3.4
+          command: ["bash"]
+          args: ["-c","bokeh serve /github_repos/attn_sandbox/eupheme_sandbox.py --port={{.Values.manager.port}}  --allow-websocket-origin {{ .Values.manager.domain }} --unused-session-lifetime 86400000 --keep-alive 10000"]
+
+          name: {{ .Values.manager.name }}
+          ports:
+            - containerPort: {{.Values.manager.port}}
+          resources:
+            requests:
+              cpu: 30000m
+              memory: 32000Mi
+          env:
+
+            - name: PYTHONPATH
+              value: /github_repos/attn_sandbox/
+            - name: FOREST_URL
+              value: {{ .Values.manager.domain }}
+
+          volumeMounts:
+            - mountPath: /github_repos/
+              name: git-volume
+
+
+            - name: goofys-informatics
+              mountPath: /s3/informatics-eupheme/
+
+      volumes:
+        - name: git-volume
+          gitRepo:
+            repository: "https://github.com/fraserlott/attn_sandbox.git"
+            revision: {{ .Values.manager.revision }}
+
+
+
+
+        - name: goofys-informatics
+          flexVolume:
+            driver: "informaticslab/goofys-flex-volume"
+            options:
+              # Required
+              bucket: "informatics-eupheme"
+              dirMode: "0755"
+              fileMode: "0777"
