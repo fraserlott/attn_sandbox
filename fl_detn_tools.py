@@ -75,7 +75,7 @@ def get_srex_mask(region):
 def set_variables(obsset,varo,daily=False):
     'Deduce from the obs set (and variable in the case of E-OBS) where the file is, the frequency and what the CF-compliant name is.'
     from os import getcwd
-    if getcwd().startswith('/home/jovyan'):#then we're running on Pangeo and the files will be elsewhere
+    if getcwd().startswith('/home/jovyan') or getcwd().startswith('/home/ec2-user'):#then we're running on Pangeo/AWS and the files are on S3
         obsfname_dict={'E-OBS': '/s3/informatics-eupheme/obs/%s_0.50deg_reg_v17.0.nc'%varo,
                        'GPCC 2.5 degree': '/s3/informatics-eupheme/obs/gpcc/full_data_monthly_v2018_25.nc',
                        'CRUTEM4': '/s3/informatics-eupheme/obs/CRUTEM.4.6.0.0.anomalies.nc'}
