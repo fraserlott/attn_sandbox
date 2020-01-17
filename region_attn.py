@@ -92,6 +92,7 @@ def obs_and_landmask_anomalise_model(model_ens, varn, obs, clim=None):
     if (varn == 'tas') | (varn == 'psl'):
         # model_anom=calc_ensemble_anomaly(model_ens,clim_period)
         model_anom = fl.anomalise(model_ens, clim_period[0], clim_period[1], clim=clim)
+        #print('No anomalies here')
     else:  # elif varn=='pr':
         model_anom = model_ens
     # fl.mask_ens(model_anom,obs.data.mask)
@@ -164,8 +165,8 @@ def load_region_ensemble(forcinglabel, region, startyear, endyear, obs, modelroo
     #    enslist=iris.load(modelpath,areaconstraint,callback=fl.datelabel_callback)#Read in all model ensemble members matching the wildcards in modelpath
     from warnings import catch_warnings, simplefilter
     with catch_warnings():
-        simplefilter(
-            "ignore")  # UserWarning: Missing CF-netCDF measure variable u'areacella', referenced by netCDF variable u'tas'
+        simplefilter("ignore")
+        # UserWarning: Missing CF-netCDF measure variable u'areacella', referenced by netCDF variable u'tas'
         if iris.__version__.startswith('2'):  # then we can use Dask for parallel loading
             enslist = distributed_load(modelpath, dateconstraint, callback=fl.datelabel_callback)
         else:  # we'll load it all serially
@@ -188,10 +189,15 @@ def load_region_ensemble(forcinglabel, region, startyear, endyear, obs, modelroo
     #if iris.__version__.startswith('2.0'):  # where datetime has comparators and Iris uses datetime
     #    endtime = max(member_constrained.coord('time').cells())
     #    constr_time1st = iris.Constraint(coord_values={'time': lambda time: time <= endtime})
-    ##if iris.__version__.startswith('1'):  # python2.7, Iris 1. datetimes aren't comparable and Iris uses Julian days
-    time_unit = member_constrained.coord('time').units
-    endtime = time_unit.num2date(member_constrained.coord('time').points.max())
-    constr_time1st = iris.Constraint(coord_values={'time': lambda time: time.point <= endtime})
+    #from pdb import set_trace
+    #set_trace()
+    if iris.__version__.startswith('1'):  # python2.7, Iris 1. datetimes aren't comparable and Iris uses Julian days
+        endtime = member_constrained.coord('time').points.max()
+        constr_time1st = iris.Constraint(coord_values={'time': lambda time: time <= endtime})
+    else:
+        time_unit = member_constrained.coord('time').units
+        endtime = time_unit.num2date(member_constrained.coord('time').points.max())
+        constr_time1st = iris.Constraint(coord_values={'time': lambda time: time.point <= endtime})
     ##else:  # Iris 2.1 using cftime datetimes which are incomparable again. Need to key to cells() to points for max, then get a PartialDateTime
     ##    endtime_cell = max(member_constrained.coord('time').cells(), key=lambda cell: cell.point)
         # from iris.time import PartialDateTime
@@ -212,7 +218,8 @@ def load_region_ensemble(forcinglabel, region, startyear, endyear, obs, modelroo
             member_constrained = member_constrained.extract(constr_time1st)
         return member_constrained.regrid(obs, ia.AreaWeighted(mdtol=0.333))  # Regrid onto obs grid
 
-    if iris.__version__.startswith('2'):  # Then we can use delayed distributed load
+    from psutil import virtual_memory
+    if iris.__version__.startswith('2') and virtual_memory()._asdict()['total']>8e9:  # Then we can use delayed distributed load
         from dask import delayed
         delayed_regrid = delayed(subsel_regrid)
         list_of_cubes = [delayed_regrid(i, i_memb) for i, i_memb in enumerate(uniquemembs)]
@@ -371,8 +378,7 @@ def load_obs(startyear, endyear, region, obsset, varname_o, daily=False):  # ,ob
         obs_raw.coord('longitude').circular = True  # This was set false, for some reason
     for axis in ['latitude', 'longitude']:
         if not obs_raw.coord(axis).has_bounds():
-            obs_raw.coord(
-                axis).guess_bounds()  # Do this before applying the region, else does not work for single grid boxes.
+            obs_raw.coord(axis).guess_bounds()  # Do this before applying the region, else does not work for single grid boxes.
     obs = apply_region(region, obs_raw, varname_o)
     "Whether we used the constraint or the mask, these will propagate to the model through regridding and land masking."
     # Necessary for CRUTEM4, maybe not for other obs. Without these lines, area averaging won't work
@@ -504,6 +510,9 @@ def get_ens_prob_wrt_thresh(distn,  # ens_list,#Now calculated outside this func
 def plot_allvsnat_t_series(all_anom, nat_anom, obs, ylabel, lc=0,filename=None):
     'Plots each member of the All-forcings and Nat-forcings time series, plus the obs time series.'
     from matplotlib.pyplot import figure,close
+    from pandas.plotting import register_matplotlib_converters
+    register_matplotlib_converters()
+
     import iris.plot as ip
     fig = figure(num='NAT vs ALL ens members')
     subpl = fig.add_subplot(1, 1, 1)
@@ -669,14 +678,14 @@ def loadandmask_cmip5da(startyear, endyear, region, obs, modelroot, modelname, v
     mask_obs(obs, varn, varname_o, freq, notlandmask)
     # print('Masked observations')
     #all_clim = fl.calc_climatology(all_ens, clim_period[0], clim_period[1])#This uses each member's own climatology
-    #from pdb import set_trace
-    #set_trace()
     all_clim = fl.calc_climatology(all_ens, clim_period[0], clim_period[1]).collapsed(['realization','physics_version'],ia.MEAN)
     #The above (using the ens mean as climatology) should now work for different numbers of members to the climatology
+    #from pdb import set_trace
+    #set_trace()
     # print('Calculated climatology')
-    all_anom = obs_and_landmask_anomalise_model(all_ens, varn, obs, clim=all_clim)
+    all_anom = obs_and_landmask_anomalise_model(all_ens, varn, obs)#, clim=all_clim)
     # print('Masked all-forcings ensemble')
-    nat_anom = obs_and_landmask_anomalise_model(nat_ens, varn, obs, clim=all_clim)
+    nat_anom = obs_and_landmask_anomalise_model(nat_ens, varn, obs)#, clim=all_clim)
     # print('Masked natural-forcings ensemble')
     return all_anom, nat_anom  # ,Changes to obs masking should pass though automatically
 
@@ -816,15 +825,17 @@ def load_process_data(startyear, endyear, eventyear, startmonth, endmonth, regio
                                              freq)  # GENERIC ATTRIBUTION load routine
 
     # Look at a single season. Event attribution example. Make sure this is within the model run period!
-    obs_seas = fl.filter_months(obs, startmonth, endmonth).aggregated_by('year',
-                                                                         ia.MEAN)  # Mean for each year over the season of interest
+    obs_seas = fl.filter_months(obs, startmonth, endmonth).aggregated_by('year',ia.MEAN)  # Mean for each year over the season of interest
     all_seas = fl.seasonal_ensemble(all_anom, startmonth, endmonth, obs_seas.coord('time'))
     nat_seas = fl.seasonal_ensemble(nat_anom, startmonth, endmonth, obs_seas.coord('time'))
 
     # Apply bias correction from the years before the one we're interested in
-    bias = calc_bias(all_seas, obs_seas, startyear, eventyear, endyear)
+    #bias = calc_bias(all_seas, obs_seas, startyear, eventyear, endyear)
+    bias = calc_bias(all_seas, obs_seas, clim_period[0], eventyear, clim_period[1])
     all_seas_bc = all_seas - bias
     nat_seas_bc = nat_seas - bias
+    print('Using climatology period to correct bias')
+    #print('Ignoring the bias')
 
     # Variance inflation could go here, once we've developed it for attribution
     # Calculate obs correlation with All for pre- and post-change. Also obs std dev and All pre/post?
@@ -988,13 +999,13 @@ def main(modelname):
     # region=[106,25,122,37]#[25-37N, 106-122E]
     # Pentad Tmax - not yet implemented
 
-    # UK 2003 or 2010 heatwaves, SSTs most analoguous to 2018
+    # UK 2003 or 2010 heatwaves, SSTs most analoguous to 2018 and 2019
     startyear = 1960
     endyear = 2012
     #startmonth = 3
     #endmonth = 5
     startmonth=6
-    endmonth=8
+    endmonth=6
     thresh = 0.667
     obsset = 'CRUTEM4'
     varo = 'temperature_anomaly'
@@ -1010,7 +1021,7 @@ def main(modelname):
     # thresh=0.333
     # region=[-6,50,2,59]#GB, excludes Hebrides and Ireland. Doesn't overlap well with CRUTEM grid though.
     # region=[-4.99,50.01,-0.01,59.99]#Prevents interaction with bounds so we just get 2 CRUTEM grid boxes.
-    eventyear =2003#2018# 2010  #
+    eventyear =2019#2003#2018# 2010  #
     pool = False#True  #
 
     # Now translate the obsset into filename and CF variable names. Should this next bit be done with an object instead?

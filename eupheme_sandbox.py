@@ -316,7 +316,7 @@ def all_distn_callback():
     all_title = Div(text=title_font + '<table style="width:200%"><td align="Center"><p>'
                      + all_distn_button.label + '</p></td></table>')
     all_text = Div(text=body_font + '<table style="width:200%"><td align="Left"><p>'
-                    + "This is the distribution of all summer temperatures in this region. "
+                    + "This is the distribution of all summer temperatures in this region. "#TODO:Parse data for text
                     + "We use this year’s " + fl_event.event_description + " as a threshold, "
                     + "and we’re interested in any event that could have been "
                     + fl_event.thresh_description + ".</p></td></table>")

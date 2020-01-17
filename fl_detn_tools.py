@@ -6,10 +6,10 @@ Created on May 29, 2014
 import numpy as np
 import iris.analysis as ia
 
-domain_dict={'psl':'A','tas':'A','pr':'A','zg':'A','ts':'L',
+domain_dict={'psl':'A','ps':'A','tas':'A','pr':'A','zg':'A','ts':'L',
              'mrsos':'L','mrso':'L','mrros':'L','mrrob':'E',
              'sfcWind':'A','ua':'A','va':'A','wap':'A',
-             'hfls':'A','rsus':'A','rsds':'A'}#prefix for monthly domain
+             'hfls':'A','rsus':'A','rsds':'A','hurs':'A','huss':'A'}#prefix for monthly domain
 
 
 
@@ -75,7 +75,7 @@ def get_srex_mask(region):
 def set_variables(obsset,varo,daily=False):
     'Deduce from the obs set (and variable in the case of E-OBS) where the file is, the frequency and what the CF-compliant name is.'
     from os import getcwd
-    if getcwd().startswith('/home/jovyan') or getcwd().startswith('/home/ec2-user'):#then we're running on Pangeo/AWS and the files are on S3
+    if getcwd().startswith('/home/jovyan') or getcwd().startswith('/home/ec2-user'):#then we're running on Pangeo/AWS and the files will be on S3
         obsfname_dict={'E-OBS': '/s3/informatics-eupheme/obs/%s_0.50deg_reg_v17.0.nc'%varo,
                        'GPCC 2.5 degree': '/s3/informatics-eupheme/obs/gpcc/full_data_monthly_v2018_25.nc',
                        'CRUTEM4': '/s3/informatics-eupheme/obs/CRUTEM.4.6.0.0.anomalies.nc'}
@@ -451,6 +451,8 @@ def calc_climatology(cube_in,startyear,endyear):
     #inclim=Constraint(coord_values={'year': lambda year: np.logical_and(startyear<=year,year<=endyear)})
     inclim = Constraint(year = lambda y: (y >= startyear) & (y <= endyear))#Seems to work when the above doesn't
     cube_inclim=cube_in.extract(inclim)
+    #from pdb import set_trace
+    #set_trace()
     if len(cube_inclim.coord('time').points) > (endyear-startyear+1)*12:#then these are dailies, not monthlies
         return cube_inclim.aggregated_by('day_of_year', ia.MEAN)#so do daily climatology
     else:#do monthly climatology
@@ -854,33 +856,41 @@ def plot_histogram(dataset,title='Histogram',xlabel='Data',ylabel='Frequency'):
 #        close(fig)
 
 
-def map_subplot(stats,symmetry):
-    from iris.plot import pcolormesh
-    from matplotlib.pyplot import gca,colorbar
+def map_subplot(stats,symmetry,vrange=None):
+    from iris.plot import pcolormesh,pcolor
+    from matplotlib.pyplot import gca#,colorbar
     from matplotlib.cm import get_cmap
-    if (str(stats.units)[:2]=='mm') or (str(stats.units)[:6]=='kg m-2'):#Or actually compare units?
+    if (str(stats.units)[:2]=='mm') or (str(stats.units)[:6]=='kg m-2'):# or (str(stats.units)[3:9]=='kg m-2'):#Or actually compare units?
         colourmap=get_cmap('BrBG')
     else:
-        colourmap=get_cmap('bwr')
+        #colourmap=get_cmap('bwr')
+        colourmap = get_cmap('coolwarm')
     #colourmap.set_bad('#c0c0c0')#Grey for missing data, to distinguish from white for no change.
-    if symmetry:
+    #colourmap.set_bad('#000000',alpha=0)#Black
+    if type(vrange) is list:
+        print('Using specified range')
+        pcolormesh(stats, vmin=vrange[0], vmax=vrange[1], cmap=colourmap)
+    elif symmetry:
+        from pdb import set_trace
+        set_trace()
         #Now make a symmetrical scale to apply this colourmap to
         #absmax=np.ma.absolute(stats.data).max()
         absmax=3.*stats.data.std()
-        pcolormesh(stats,vmin=-absmax, vmax=absmax, cmap=colourmap)
+        pcolormesh(stats,vmin=-absmax, vmax=absmax, cmap=colourmap)#, hatch='/')
     else:#just let pcolormesh do what it likes
         pcolormesh(stats,cmap=colourmap)
+        pcolor(stats,alpha=0, hatch='/')
     gca().coastlines()
-    colorbar(orientation='vertical',label=str(stats.long_name)+'('+str(stats.units)+')')
-    
 
-def map_stats(stats,statname,subnames=None,show_graph=True,filename='map_stats.png',symmetry=True):
-    from matplotlib.pyplot import figure,show,close
+
+def map_stats(stats,statname,subnames=None,show_graph=True,filename='map_stats.png',symmetry=True,vrange=None):
+    from matplotlib.pyplot import figure,show,close,colorbar
     fig=figure(num='Map of '+statname)
     statdims=stats.shape
     if len(statdims)==2:
         subpl=fig.add_subplot(1,1,1)
-        map_subplot(stats,symmetry)
+        map_subplot(stats,symmetry,vrange=vrange)
+        colorbar(orientation='vertical', label=str(stats.long_name) + '(' + str(stats.units) + ')')
     elif len(statdims)==3:
         subplcols=np.ceil(np.sqrt(statdims[0]))
         subplrows=np.ceil(statdims[0]/subplcols)
@@ -890,7 +900,8 @@ def map_stats(stats,statname,subnames=None,show_graph=True,filename='map_stats.p
             else:
                 subtitle=''
             subpl=fig.add_subplot(subplrows,subplcols,i+1,title=subtitle)
-            map_subplot(stats[i],symmetry)
+            map_subplot(stats[i],symmetry,vrange=vrange)
+        colorbar(orientation='vertical',label=str(stats[0].long_name)+'('+str(stats[0].units)+')')
     if show_graph:
         show(block=False)
     else:
